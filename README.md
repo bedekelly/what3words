@@ -1,24 +1,29 @@
-# what3words (DNS edition)
+# 📍 what3words (DNS edition)
+
 Toy Go DNS server which resolves IPs based on a three.word.format
 
 **Build the project locally:**
+
 ```bash
 $ go build .
 ```
 
 **Translate a domain to its three-word equivalent format:**
+
 ```bash
 $ ./what3words -t bede.io
 balcony.scissors.hurt
 ```
 
 **Run a DNS server for the three-word format:**
+
 ```bash
 $ sudo ./what3words -s
 Listening on port 53...
 ```
 
 **Using the DNS server (nslookup):**
+
 ```bash
 $ nslookup balcony.scissors.hurt localhost
 Server:		localhost
@@ -29,6 +34,7 @@ Address: 35.176.67.126
 ```
 
 **Using the DNS server (dig):**
+
 ```bash
 $ dig @localhost balcony.scissors.hurt
 
@@ -49,14 +55,13 @@ balcony.scissors.hurt.	0	IN	A	35.176.67.126
 ```
 
 ## Using the DNS Server (Safari, ping, curl etc.)
-MacOS doesn't seem to like my DNS server. I've tried a lot of things:
-* Adding `127.0.0.1`, `0.0.0.0`, `localhost`, `mini.local` etc. to my DNS Servers/Domains preferences pane
-* Using `networksetup` to set these programmatically instead of through the GUI
-* Clearing the DNS cache using `sudo killall -HUP mDNSResponder`
-* Restarting my computer (of course!)
-* Explicitly specifying the `--dns-servers` option to curl
-* Checking my `/etc/resolv.conf`
-* Changing the order of the DNS servers in the prefpane
-* Adding a known TLD like `.local` or `.com` to the end of the domains
 
-But `ping` and `curl` resolutely report that they can't find the host I'm talking about, while refusing to make a DNS request to my server at all.
+MacOS is really fiddly with DNS stuff. If you add `0.0.0.0` to the top of your DNS servers in System Preferences, it _may_ start resolving three-word domains correctly (see pic below!). However, it's pretty flaky. Some problems I've seen:
+
+- Doesn't resolve until DNS service is restarted with `sudo killall -HUP mDNSResponder`
+- Doesn't resolve even _with_ a restart of the DNS service until some other settings are changed in the preference pane (WEIRD!)
+- Safari sometimes literally _alternates_ between each request resolving & not resolving, seemingly related to the "Limit IP Address Tracking" setting.
+
+Still, it was great to see my `balcony.scissors.hurt` domain resolving!
+
+[![Webpage with URL balcony.scissors.hurt displaying contents with a large heading saying "It works!!!"](itWorks.png)](https://blog.bede.io/what3words-dns-edition/)
