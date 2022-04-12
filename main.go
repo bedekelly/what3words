@@ -69,7 +69,7 @@ func domainSliceToBytes(pieces []string) []byte {
 	return bytes
 }
 
-func getResponseHeaders(dataSlice []byte) []byte {
+func getResponseHeader(reqHeader []byte) []byte {
 	// Set the query/response bit to RESPONSE.
 	var QR byte = 0b1 << 7
 
@@ -83,7 +83,7 @@ func getResponseHeaders(dataSlice []byte) []byte {
 	var TC byte = 0b0 << 1
 
 	// Recursion desired? (Copy from request.)
-	var RD byte = dataSlice[3] & 0x2
+	var RD byte = reqHeader[3] & 0x2
 
 	// We can't provide recursion.
 	var RA byte = 0b0 << 7
@@ -96,7 +96,7 @@ func getResponseHeaders(dataSlice []byte) []byte {
 
 	return []byte{
 		// ID (2 bytes)
-		dataSlice[0], dataSlice[1],
+		reqHeader[0], reqHeader[1],
 
 		// Flags (1 byte)
 		QR | OPCode | AA | TC | RD,
@@ -105,7 +105,7 @@ func getResponseHeaders(dataSlice []byte) []byte {
 		RA | Z | RCode,
 
 		// Number of entries in the question section
-		0, 0,
+		0, 1,
 
 		// Number of resource records in the answer section
 		0, 1,
@@ -118,7 +118,7 @@ func getResponseHeaders(dataSlice []byte) []byte {
 	}
 }
 
-func getResponseBody(ipNum uint32) []byte {
+func getResponseAnswer(ipNum uint32, name []string) []byte {
 	ip1 := byte(ipNum >> 24 & 0xFF)
 	ip2 := byte(ipNum >> 16 & 0xFF)
 	ip3 := byte(ipNum >> 8 & 0xFF)
@@ -126,7 +126,8 @@ func getResponseBody(ipNum uint32) []byte {
 
 	fmt.Printf("Responding with IP: %d.%d.%d.%d\n", ip1, ip2, ip3, ip4)
 
-	return []byte{
+	answer := domainSliceToBytes(name)
+	return append(answer, []byte{
 		// TYPE = A Record
 		0, 1,
 
@@ -141,17 +142,18 @@ func getResponseBody(ipNum uint32) []byte {
 
 		// IP address as requested.
 		ip1, ip2, ip3, ip4,
-	}
+	}...)
 }
 
-func processDNSRequest(dataSlice []byte, wordIndices map[string]int, socket *net.UDPConn, remoteAddr *net.UDPAddr) {
-	transactionID := dataSlice[0:2]
+func processDNSRequest(request []byte, wordIndices map[string]int, socket *net.UDPConn, remoteAddr *net.UDPAddr) {
+	reqHeader := request[:12]
+	transactionID := reqHeader[0:2]
 	fmt.Printf("Transaction ID: 0x%X\n", transactionID)
 
-	flags := dataSlice[2:4]
+	flags := reqHeader[2:4]
 	fmt.Printf("Flags: 0x%X\n", flags)
 
-	questions := dataSlice[4:6]
+	questions := reqHeader[4:6]
 	numQuestions := binary.BigEndian.Uint16(questions)
 	fmt.Printf("Questions: %x\n", numQuestions)
 
@@ -160,8 +162,8 @@ func processDNSRequest(dataSlice []byte, wordIndices map[string]int, socket *net
 		return
 	}
 
-	queries := dataSlice[12:]
-	name := bytesToDomainSlice(queries)
+	reqBody := request[12:]
+	name := bytesToDomainSlice(reqBody)
 	fmt.Printf("Name: %s\n", strings.Join(name, "."))
 
 	// Build up the IP number from the given name, 11 bits at a time.
@@ -181,15 +183,21 @@ func processDNSRequest(dataSlice []byte, wordIndices map[string]int, socket *net
 		return
 	}
 
-	// Build up response from headers, domain and body.
-	response := getResponseHeaders(dataSlice)
-	domainNameAsBytes := domainSliceToBytes(name)
-	response = append(response, domainNameAsBytes...)
-	body := getResponseBody(ipNum)
-	response = append(response, body...)
+	// Build up res from headers, domain and body.
+	res := getResponseHeader(reqHeader)
+
+	// For some reason, we need to send the Question section back...
+	reqQuestion := []byte{}
+	reqQuestion = append(reqQuestion, domainSliceToBytes(name)...)
+	// A Record, IN Type.
+	reqQuestion = append(reqQuestion, []byte{0, 1, 0, 1}...)
+	res = append(res, reqQuestion...)
+
+	resAnswer := getResponseAnswer(ipNum, name)
+	res = append(res, resAnswer...)
 
 	socket.WriteToUDP(
-		response,
+		res,
 		remoteAddr,
 	)
 }
