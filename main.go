@@ -190,7 +190,7 @@ func processDNSRequest(request []byte, wordIndices map[string]int, socket *net.U
 	reqQuestion := []byte{}
 	reqQuestion = append(reqQuestion, domainSliceToBytes(name)...)
 	// A Record, IN Type.
-	reqQuestion = append(reqQuestion, []byte{0, 1, 0, 1}...)
+	reqQuestion = append(reqQuestion, 0, 1, 0, 1)
 	res = append(res, reqQuestion...)
 
 	resAnswer := getResponseAnswer(ipNum, name)
@@ -204,7 +204,7 @@ func processDNSRequest(request []byte, wordIndices map[string]int, socket *net.U
 
 func serveWordsDNS(wordIndices map[string]int) {
 	socket, err := net.ListenUDP("udp4", &net.UDPAddr{
-		IP:   net.IPv4(127, 0, 0, 1),
+		IP:   net.IPv4(0, 0, 0, 0),
 		Port: 53,
 	})
 
